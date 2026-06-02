@@ -248,31 +248,174 @@ export default function EmoteStudio({ specId }: Props) {
       ? result.sizes.every((s) => s.bytes <= spec.maxBytes!)
       : true;
 
-  return (
-    <>
-    <div className="grid items-start gap-6 lg:grid-cols-[360px_1fr]">
-      {/* ---- Controls ---- */}
-      <div className="space-y-5">
-        {/* Mobile-only sticky live preview so edits are visible while scrolling controls */}
-        {result && (
-          <div className="sticky top-16 z-20 -mx-1 rounded-xl border border-zinc-800 bg-zinc-950/95 px-3 py-2 backdrop-blur lg:hidden">
-            <div className="flex items-center gap-3">
-              <span className="text-[11px] font-medium text-zinc-400">Live</span>
-              <div className="checker flex items-center gap-2 rounded px-2 py-1">
-                {result.sizes.map((s) => (
-                  // eslint-disable-next-line @next/next/no-img-element
+  const renderPreviewCard = () => {
+    if (!result) return null;
+    return (
+      <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-4">
+        <div className="mb-3 flex items-center justify-between">
+          <h3 className="text-sm font-semibold text-zinc-200">
+            Live preview — actual size in chat
+          </h3>
+          <button
+            type="button"
+            onClick={() => setDarkPreview((v) => !v)}
+            className="chip text-xs"
+          >
+            {darkPreview ? "Dark chat" : "Light chat"}
+          </button>
+        </div>
+        <ChatMockup
+          url={result.sizes.find((s) => s.size === Math.max(...spec.sizes))?.url ?? ""}
+          smallUrl={result.sizes[0]?.url ?? ""}
+          dark={darkPreview}
+          isBadge={spec.id.includes("badge")}
+        />
+      </div>
+    );
+  };
+
+  const renderDownloadsCard = () => {
+    if (!result) return null;
+    return (
+      <div className="space-y-4">
+        {/* Per-size cards */}
+        <div className="grid gap-3 grid-cols-3">
+          {result.sizes.map((s) => {
+            const ok = !spec.maxBytes || s.bytes <= spec.maxBytes;
+            return (
+              <div
+                key={s.size}
+                className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-3 text-center"
+              >
+                <div className="checker mx-auto mb-2 flex h-20 items-center justify-center rounded-lg">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
-                    key={s.size}
                     src={s.url}
                     alt={`${s.size}px`}
-                    style={{ width: s.size, height: s.size }}
+                    style={{ width: Math.min(s.size, 64), height: Math.min(s.size, 64), imageRendering: "auto" }}
                   />
-                ))}
+                </div>
+                <div className="text-xs font-semibold text-zinc-200">
+                  {s.size} × {s.size}
+                </div>
+                <div
+                  className={`text-[10px] ${ok ? "text-emerald-400" : "text-amber-400"}`}
+                >
+                  {formatBytes(s.bytes)} {ok ? "✓" : "⚠ over"}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    downloadBlob(s.blob, `${spec.id}_${s.size}.${animated ? "gif" : "png"}`);
+                    track("download_size", { spec: spec.id, size: s.size, animated });
+                  }}
+                  className="btn-secondary mt-2 w-full text-[10px]"
+                >
+                  ↓ {s.size}px
+                </button>
               </div>
-              {busy && <span className="text-[11px] text-violet-400">…</span>}
+            );
+          })}
+        </div>
+
+        {/* Original size download — available after bg removal */}
+        {bgRemoved && working && (
+          <div className="rounded-xl border border-emerald-700/50 bg-emerald-500/5 p-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <div className="text-sm font-semibold text-emerald-300">
+                  🖼️ Original Size (HD)
+                </div>
+                <div className="text-xs text-zinc-400 mt-0.5">
+                  Full resolution transparent PNG
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  downloadBlob(working, `${spec.id}_original_nobg.png`);
+                  track("download_original_hd", { spec: spec.id });
+                }}
+                className="btn-primary text-sm"
+              >
+                Download Original PNG
+              </button>
             </div>
           </div>
         )}
+
+        {/* ZIP + validation */}
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-zinc-800 bg-zinc-900/40 p-3">
+          <div className="text-xs">
+            {spec.maxBytes ? (
+              allValid ? (
+                <span className="text-emerald-400">
+                  ✓ All sizes meet {spec.label} limits
+                </span>
+              ) : (
+                <span className="text-amber-400">
+                  ⚠ Some sizes over {formatBytes(spec.maxBytes)} limit
+                </span>
+              )
+            ) : (
+              <span className="text-zinc-400">Ready to download.</span>
+            )}
+          </div>
+          <div className="flex gap-2">
+            <button type="button" onClick={downloadZip} className="btn-primary text-xs">
+              Download ZIP
+            </button>
+            <button type="button" onClick={copyShareLink} className="btn-secondary text-xs">
+              {shareCopied ? "✓ Copied" : "🔗 Share"}
+            </button>
+          </div>
+        </div>
+
+        {/* Badge tier variants grid */}
+        {tierResults && tierResults.length > 0 && (
+          <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-4">
+            <h3 className="mb-3 text-sm font-semibold text-zinc-200">Badge tier variants</h3>
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {tierResults.map((tier) => (
+                <div key={tier.label} className="rounded-lg border border-zinc-700 p-3 text-center">
+                  <div className="text-xs font-medium text-zinc-300 mb-2">{tier.label}</div>
+                  <div className="flex justify-center gap-1">
+                    {tier.result.sizes.map((s) => (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img key={s.size} src={s.url} alt={`${tier.label} ${s.size}px`}
+                        className="checker rounded" style={{ width: s.size, height: s.size }} />
+                    ))}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      const zip = await buildZip([{ folder: `${spec.zipFolder}-${tier.label.split(" ")[0].toLowerCase()}`, baseName: spec.id, ext: "png", sizes: tier.result.sizes }]);
+                      downloadBlob(zip, `${spec.id}-${tier.label.split(" ")[0].toLowerCase()}.zip`);
+                    }}
+                    className="btn-secondary mt-2 w-full text-[10px]"
+                  >
+                    Download {tier.label}
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  return (
+    <>
+    {error && (
+      <div className="mb-5 rounded-xl border border-red-700 bg-red-500/10 px-4 py-3 text-sm text-red-300">
+        {error}
+      </div>
+    )}
+
+    <div className="grid items-start gap-6 lg:grid-cols-[360px_1fr]">
+      {/* ---- Controls Column ---- */}
+      <div className="space-y-5">
         <div
           ref={dropRef}
           onDrop={onDrop}
@@ -309,6 +452,7 @@ export default function EmoteStudio({ specId }: Props) {
               {recent.map((r) => (
                 <button
                   key={r.id}
+                  type="button"
                   onClick={() => loadFile(recentToFile(r), false)}
                   title={r.name}
                   className="checker h-12 w-12 overflow-hidden rounded-lg border border-zinc-700 transition hover:border-violet-500"
@@ -322,6 +466,41 @@ export default function EmoteStudio({ specId }: Props) {
                 </button>
               ))}
             </div>
+          </div>
+        )}
+
+        {/* Mobile-only Progress indicator */}
+        {busy && (
+          <div className="lg:hidden rounded-xl border border-violet-700 bg-violet-500/10 px-4 py-3 text-sm text-violet-200">
+            <div className="flex items-center gap-2">
+              <svg className="h-4 w-4 animate-spin text-violet-400" viewBox="0 0 24 24" fill="none">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
+              </svg>
+              <span>{progress || "Processing…"}</span>
+            </div>
+            {progress.match(/(\d+)%/) && (
+              <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-violet-900/40">
+                <div className="h-full bg-violet-400 transition-all" style={{ width: `${progress.match(/(\d+)%/)![1]}%` }} />
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Mobile-only Fallback preview when processing (no result yet) */}
+        {!result && filePreviewUrl && (
+          <div className="lg:hidden rounded-xl border border-zinc-800 bg-zinc-900/40 p-4">
+            <div className="checker mx-auto flex h-44 items-center justify-center rounded-lg">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={filePreviewUrl} alt="Uploaded" className="max-h-40 max-w-full rounded object-contain" />
+            </div>
+          </div>
+        )}
+
+        {/* Mobile-only Live preview & chat mockup (Placed above editing options) */}
+        {result && (
+          <div className="lg:hidden space-y-4">
+            {renderPreviewCard()}
           </div>
         )}
 
@@ -360,6 +539,7 @@ export default function EmoteStudio({ specId }: Props) {
                 <Field label="Background">
                   <div className="flex items-center gap-2">
                     <button
+                      type="button"
                       onClick={() => setOpts((o) => ({ ...o, background: null }))}
                       className={`chip ${opts.background === null ? "chip-on" : ""}`}
                     >
@@ -422,6 +602,7 @@ export default function EmoteStudio({ specId }: Props) {
                 <Field label="Transform">
                   <div className="flex flex-wrap gap-2">
                     <button
+                      type="button"
                       onClick={() => setOpts((o) => ({ ...o, rotate: (o.rotate - 90 + 360) % 360 }))}
                       className="chip"
                       title="Rotate left"
@@ -429,6 +610,7 @@ export default function EmoteStudio({ specId }: Props) {
                       ↺ Left
                     </button>
                     <button
+                      type="button"
                       onClick={() => setOpts((o) => ({ ...o, rotate: (o.rotate + 90) % 360 }))}
                       className="chip"
                       title="Rotate right"
@@ -436,12 +618,14 @@ export default function EmoteStudio({ specId }: Props) {
                       ↻ Right
                     </button>
                     <button
+                      type="button"
                       onClick={() => setOpts((o) => ({ ...o, flipH: !o.flipH }))}
                       className={`chip ${opts.flipH ? "chip-on" : ""}`}
                     >
                       ⇋ Flip H
                     </button>
                     <button
+                      type="button"
                       onClick={() => setOpts((o) => ({ ...o, flipV: !o.flipV }))}
                       className={`chip ${opts.flipV ? "chip-on" : ""}`}
                     >
@@ -492,6 +676,7 @@ export default function EmoteStudio({ specId }: Props) {
                 </Field>
 
                 <button
+                  type="button"
                   onClick={() => setOpts(DEFAULT_OPTIONS)}
                   className="text-xs text-zinc-500 hover:text-zinc-300"
                 >
@@ -501,7 +686,7 @@ export default function EmoteStudio({ specId }: Props) {
                 {/* Crop / Zoom */}
                 <Field label="Crop / Zoom">
                   {!showCrop ? (
-                    <button onClick={() => { setCropDraft({ ...opts.crop }); setShowCrop(true); }} className="btn-secondary w-full text-xs">
+                    <button type="button" onClick={() => { setCropDraft({ ...opts.crop }); setShowCrop(true); }} className="btn-secondary w-full text-xs">
                       Open crop editor
                     </button>
                   ) : (
@@ -529,10 +714,10 @@ export default function EmoteStudio({ specId }: Props) {
                         </label>
                       </div>
                       <div className="flex gap-2">
-                        <button onClick={() => { setOpts((o) => ({ ...o, crop: cropDraft })); setShowCrop(false); }} className="btn-primary flex-1 text-xs">
+                        <button type="button" onClick={() => { setOpts((o) => ({ ...o, crop: cropDraft })); setShowCrop(false); }} className="btn-primary flex-1 text-xs">
                           Apply crop
                         </button>
-                        <button onClick={() => { setCropDraft({ ...FULL_CROP }); setOpts((o) => ({ ...o, crop: { ...FULL_CROP } })); setShowCrop(false); }} className="btn-secondary flex-1 text-xs">
+                        <button type="button" onClick={() => { setCropDraft({ ...FULL_CROP }); setOpts((o) => ({ ...o, crop: { ...FULL_CROP } })); setShowCrop(false); }} className="btn-secondary flex-1 text-xs">
                           Reset
                         </button>
                       </div>
@@ -570,12 +755,12 @@ export default function EmoteStudio({ specId }: Props) {
                       </div>
                       <div className="flex gap-1">
                         {(["top", "center", "bottom"] as const).map((pos) => (
-                          <button key={pos} onClick={() => setOpts((o) => ({ ...o, textOverlay: { ...o.textOverlay, position: pos } }))}
+                          <button key={pos} type="button" onClick={() => setOpts((o) => ({ ...o, textOverlay: { ...o.textOverlay, position: pos } }))}
                             className={`chip text-[10px] ${opts.textOverlay.position === pos ? "chip-on" : ""}`}>
                             {pos}
                           </button>
                         ))}
-                        <button onClick={() => setOpts((o) => ({ ...o, textOverlay: { ...o.textOverlay, bold: !o.textOverlay.bold } }))}
+                        <button type="button" onClick={() => setOpts((o) => ({ ...o, textOverlay: { ...o.textOverlay, bold: !o.textOverlay.bold } }))}
                           className={`chip text-[10px] ${opts.textOverlay.bold ? "chip-on" : ""}`}>
                           Bold
                         </button>
@@ -602,6 +787,7 @@ export default function EmoteStudio({ specId }: Props) {
                           onChange={(e) => setOpts((o) => ({ ...o, shadow: { ...o.shadow, color: e.target.value } }))}
                           className="h-7 w-8 cursor-pointer rounded border border-zinc-700 bg-transparent" />
                         <button
+                          type="button"
                           onClick={() => setOpts((o) => ({ ...o, shadow: { ...o.shadow, offsetX: 0, offsetY: 0, blur: 0.12 } }))}
                           className="chip text-[10px]"
                           title="Center the shadow for an even glow"
@@ -636,13 +822,14 @@ export default function EmoteStudio({ specId }: Props) {
                   <Field label="Badge tier color">
                     <div className="flex flex-wrap gap-1">
                       {BADGE_TIER_PRESETS.map((t) => (
-                        <button key={t.label} onClick={() => setOpts((o) => ({ ...o, hueRotate: t.hueRotate }))}
+                        <button key={t.label} type="button" onClick={() => setOpts((o) => ({ ...o, hueRotate: t.hueRotate }))}
                           className={`chip text-[10px] ${opts.hueRotate === t.hueRotate ? "chip-on" : ""}`}>
                           {t.label.split(" ")[0]}
                         </button>
                       ))}
                     </div>
                     <button
+                      type="button"
                       onClick={async () => {
                         if (!working) return;
                         setBusy(true);
@@ -661,7 +848,7 @@ export default function EmoteStudio({ specId }: Props) {
 
                 <div className="flex gap-2">
                   {!animated && !bgRemoved && (
-                    <button onClick={handleRemoveBg} disabled={busy} className="btn-secondary flex-1">
+                    <button type="button" onClick={handleRemoveBg} disabled={busy} className="btn-secondary flex-1">
                       {busy && progress.toLowerCase().includes("background")
                         ? "Removing…"
                         : busy && progress.toLowerCase().includes("model")
@@ -670,7 +857,7 @@ export default function EmoteStudio({ specId }: Props) {
                     </button>
                   )}
                   {(bgRemoved || (animated && file && !isAnimatedFile(file))) && (
-                    <button onClick={restoreOriginal} className="btn-secondary flex-1">
+                    <button type="button" onClick={restoreOriginal} className="btn-secondary flex-1">
                       Restore original
                     </button>
                   )}
@@ -683,6 +870,7 @@ export default function EmoteStudio({ specId }: Props) {
                       {(["bounce", "shake", "pulse", "rainbow", "spin"] as AnimationPreset[]).map((p) => (
                         <button
                           key={p}
+                          type="button"
                           disabled={busy}
                           onClick={async () => {
                             if (!working) return;
@@ -734,6 +922,7 @@ export default function EmoteStudio({ specId }: Props) {
                 <Field label="Background">
                   <div className="flex items-center gap-2">
                     <button
+                      type="button"
                       onClick={() => setAnimOpts((o) => ({ ...o, background: null }))}
                       className={`chip ${animOpts.background === null ? "chip-on" : ""}`}
                     >
@@ -777,6 +966,7 @@ export default function EmoteStudio({ specId }: Props) {
                       {(["bounce", "shake", "pulse", "rainbow", "spin"] as AnimationPreset[]).map((p) => (
                         <button
                           key={p}
+                          type="button"
                           disabled={busy}
                           onClick={async () => {
                             if (!working) return;
@@ -807,12 +997,13 @@ export default function EmoteStudio({ specId }: Props) {
 
                 {/* Revert to static option if the original file is static */}
                 {file && !isAnimatedFile(file) && (
-                  <button onClick={restoreOriginal} className="btn-secondary w-full text-xs">
+                  <button type="button" onClick={restoreOriginal} className="btn-secondary w-full text-xs">
                     ↩ Revert to static mode
                   </button>
                 )}
 
                 <button
+                  type="button"
                   onClick={() => runProcess()}
                   disabled={busy}
                   className="btn-primary w-full"
@@ -823,193 +1014,50 @@ export default function EmoteStudio({ specId }: Props) {
             )}
           </div>
         )}
+
+        {/* Mobile-only Downloads and export actions */}
+        {result && (
+          <div className="lg:hidden mt-4">
+            {renderDownloadsCard()}
+          </div>
+        )}
       </div>
 
-      {/* ---- Right column: Preview + Downloads (sticky) ---- */}
-      <div className="space-y-4 lg:sticky lg:top-24 lg:self-start lg:max-h-[calc(100vh-7rem)] lg:overflow-y-auto">
-          {error && (
-            <div className="rounded-xl border border-red-700 bg-red-500/10 px-4 py-3 text-sm text-red-300">
-              {error}
+      {/* ---- Right Column: Desktop Previews & Downloads (Sticky, hidden on mobile) ---- */}
+      <div className="hidden lg:block space-y-4 lg:sticky lg:top-24 lg:self-start lg:max-h-[calc(100vh-7rem)] lg:overflow-y-auto">
+        {!file && <EmptyState spec={spec} />}
+
+        {result && renderPreviewCard()}
+
+        {/* Fallback preview when processing (no result yet) */}
+        {!result && filePreviewUrl && (
+          <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-4">
+            <div className="checker mx-auto flex h-44 items-center justify-center rounded-lg">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={filePreviewUrl} alt="Uploaded" className="max-h-40 max-w-full rounded object-contain" />
             </div>
-          )}
+          </div>
+        )}
 
-          {!file && <EmptyState spec={spec} />}
-
-          {result && (
-            <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-4">
-              <div className="mb-3 flex items-center justify-between">
-                <h3 className="text-sm font-semibold text-zinc-200">
-                  Live preview — actual size in chat
-                </h3>
-                <button
-                  onClick={() => setDarkPreview((v) => !v)}
-                  className="chip"
-                >
-                  {darkPreview ? "Dark chat" : "Light chat"}
-                </button>
-              </div>
-              <ChatMockup
-                url={result.sizes.find((s) => s.size === Math.max(...spec.sizes))?.url ?? ""}
-                smallUrl={result.sizes[0]?.url ?? ""}
-                dark={darkPreview}
-                isBadge={spec.id.includes("badge")}
-              />
+        {/* Progress indicator */}
+        {busy && (
+          <div className="rounded-xl border border-violet-700 bg-violet-500/10 px-4 py-3 text-sm text-violet-200">
+            <div className="flex items-center gap-2">
+              <svg className="h-4 w-4 animate-spin text-violet-400" viewBox="0 0 24 24" fill="none">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
+              </svg>
+              <span>{progress || "Processing…"}</span>
             </div>
-          )}
-
-          {/* File preview fallback when processing (no result yet) */}
-          {!result && filePreviewUrl && (
-            <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-4">
-              <div className="checker mx-auto flex h-44 items-center justify-center rounded-lg">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={filePreviewUrl} alt="Uploaded" className="max-h-40 max-w-full rounded object-contain" />
-              </div>
-            </div>
-          )}
-
-          {/* Progress indicator — BELOW the photo */}
-          {busy && (
-            <div className="rounded-xl border border-violet-700 bg-violet-500/10 px-4 py-3 text-sm text-violet-200">
-              <div className="flex items-center gap-2">
-                <svg className="h-4 w-4 animate-spin text-violet-400" viewBox="0 0 24 24" fill="none">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
-                </svg>
-                <span>{progress || "Processing…"}</span>
-              </div>
-              {progress.match(/(\d+)%/) && (
-                <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-violet-900/40">
-                  <div className="h-full bg-violet-400 transition-all" style={{ width: `${progress.match(/(\d+)%/)![1]}%` }} />
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* ---- Downloads & sizes ---- */}
-          {result && (
-            <div className="space-y-4">
-        {/* Per-size cards */}
-        <div className="grid gap-3 grid-cols-3">
-              {result.sizes.map((s) => {
-                const ok = !spec.maxBytes || s.bytes <= spec.maxBytes;
-                return (
-                  <div
-                    key={s.size}
-                    className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-3 text-center"
-                  >
-                    <div className="checker mx-auto mb-2 flex h-20 items-center justify-center rounded-lg">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src={s.url}
-                        alt={`${s.size}px`}
-                        style={{ width: Math.min(s.size, 64), height: Math.min(s.size, 64), imageRendering: "auto" }}
-                      />
-                    </div>
-                    <div className="text-xs font-semibold text-zinc-200">
-                      {s.size} × {s.size}
-                    </div>
-                    <div
-                      className={`text-[10px] ${ok ? "text-emerald-400" : "text-amber-400"}`}
-                    >
-                      {formatBytes(s.bytes)} {ok ? "✓" : "⚠ over"}
-                    </div>
-                    <button
-                      onClick={() => {
-                        downloadBlob(s.blob, `${spec.id}_${s.size}.${animated ? "gif" : "png"}`);
-                        track("download_size", { spec: spec.id, size: s.size, animated });
-                      }}
-                      className="btn-secondary mt-2 w-full text-[10px]"
-                    >
-                      ↓ {s.size}px
-                    </button>
-                  </div>
-                );
-              })}
-            </div>
-
-            {/* Original size download — available after bg removal */}
-            {bgRemoved && working && (
-              <div className="rounded-xl border border-emerald-700/50 bg-emerald-500/5 p-4">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div>
-                    <div className="text-sm font-semibold text-emerald-300">
-                      🖼️ Original Size (HD)
-                    </div>
-                    <div className="text-xs text-zinc-400 mt-0.5">
-                      Full resolution transparent PNG
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => {
-                      downloadBlob(working, `${spec.id}_original_nobg.png`);
-                      track("download_original_hd", { spec: spec.id });
-                    }}
-                    className="btn-primary text-sm"
-                  >
-                    Download Original PNG
-                  </button>
-                </div>
+            {progress.match(/(\d+)%/) && (
+              <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-violet-900/40">
+                <div className="h-full bg-violet-400 transition-all" style={{ width: `${progress.match(/(\d+)%/)![1]}%` }} />
               </div>
             )}
+          </div>
+        )}
 
-            {/* ZIP + validation */}
-            <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-zinc-800 bg-zinc-900/40 p-3">
-              <div className="text-xs">
-                {spec.maxBytes ? (
-                  allValid ? (
-                    <span className="text-emerald-400">
-                      ✓ All sizes meet {spec.label} limits
-                    </span>
-                  ) : (
-                    <span className="text-amber-400">
-                      ⚠ Some sizes over {formatBytes(spec.maxBytes)} limit
-                    </span>
-                  )
-                ) : (
-                  <span className="text-zinc-400">Ready to download.</span>
-                )}
-              </div>
-              <div className="flex gap-2">
-                <button onClick={downloadZip} className="btn-primary text-xs">
-                  Download ZIP
-                </button>
-                <button onClick={copyShareLink} className="btn-secondary text-xs">
-                  {shareCopied ? "✓ Copied" : "🔗 Share"}
-                </button>
-              </div>
-            </div>
-
-            {/* Badge tier variants grid */}
-            {tierResults && tierResults.length > 0 && (
-              <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-4">
-                <h3 className="mb-3 text-sm font-semibold text-zinc-200">Badge tier variants</h3>
-                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                  {tierResults.map((tier) => (
-                    <div key={tier.label} className="rounded-lg border border-zinc-700 p-3 text-center">
-                      <div className="text-xs font-medium text-zinc-300 mb-2">{tier.label}</div>
-                      <div className="flex justify-center gap-1">
-                        {tier.result.sizes.map((s) => (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img key={s.size} src={s.url} alt={`${tier.label} ${s.size}px`}
-                            className="checker rounded" style={{ width: s.size, height: s.size }} />
-                        ))}
-                      </div>
-                      <button
-                        onClick={async () => {
-                          const zip = await buildZip([{ folder: `${spec.zipFolder}-${tier.label.split(" ")[0].toLowerCase()}`, baseName: spec.id, ext: "png", sizes: tier.result.sizes }]);
-                          downloadBlob(zip, `${spec.id}-${tier.label.split(" ")[0].toLowerCase()}.zip`);
-                        }}
-                        className="btn-secondary mt-2 w-full text-[10px]"
-                      >
-                        Download {tier.label}
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-            </div>
-          )}
+        {result && renderDownloadsCard()}
       </div>
     </div>
     </>
