@@ -58,6 +58,22 @@ export default function EmoteStudio({ specId }: Props) {
   const [shareCopied, setShareCopied] = useState(false);
   const [recent, setRecent] = useState<RecentFile[]>([]);
 
+  // Accordion state
+  const [openSections, setOpenSections] = useState<Record<string, boolean>>({
+    canvas: true,
+    transform: false,
+    color: false,
+    effects: false,
+    badge: false,
+    makeAnimated: false,
+    animation: true,
+  });
+
+  const toggleSection = (sec: string) => {
+    setOpenSections((prev) => ({ ...prev, [sec]: !prev[sec] }));
+  };
+
+
   // Stable preview URL for uploaded file (avoids object URL leaks)
   const filePreviewUrl = useMemo(() => {
     if (!file) return null;
@@ -413,7 +429,7 @@ export default function EmoteStudio({ specId }: Props) {
       </div>
     )}
 
-    <div className="grid items-start gap-6 lg:grid-cols-[360px_1fr]">
+    <div className="grid items-start gap-6 lg:grid-cols-[420px_1fr]">
       {/* ---- Controls Column ---- */}
       <div className="space-y-5">
         <div
@@ -505,350 +521,529 @@ export default function EmoteStudio({ specId }: Props) {
         )}
 
         {file && (
-          <div className="space-y-4 rounded-xl border border-zinc-800 bg-zinc-900/40 p-4">
+          <div className="space-y-3">
             {!animated && (
               <>
-                <Field label="Fit">
-                  <select
-                    value={opts.fit}
-                    onChange={(e) =>
-                      setOpts((o) => ({ ...o, fit: e.target.value as FitMode }))
-                    }
-                    className="input"
-                  >
-                    <option value="contain">Contain (no crop)</option>
-                    <option value="cover">Cover (fill, crop)</option>
-                    <option value="stretch">Stretch</option>
-                  </select>
-                </Field>
-
-                <Field label={`Padding: ${Math.round(opts.padding * 100)}%`}>
-                  <input
-                    type="range"
-                    min={0}
-                    max={0.4}
-                    step={0.01}
-                    value={opts.padding}
-                    onChange={(e) =>
-                      setOpts((o) => ({ ...o, padding: Number(e.target.value) }))
-                    }
-                    className="w-full"
-                  />
-                </Field>
-
-                <Field label="Background">
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setOpts((o) => ({ ...o, background: null }))}
-                      className={`chip ${opts.background === null ? "chip-on" : ""}`}
-                    >
-                      Transparent
-                    </button>
-                    <input
-                      type="color"
-                      value={opts.background ?? "#ffffff"}
+                <CollapsibleSection
+                  title="Canvas & Fit"
+                  isOpen={openSections.canvas}
+                  onToggle={() => toggleSection("canvas")}
+                >
+                  <Field label="Fit">
+                    <select
+                      value={opts.fit}
                       onChange={(e) =>
-                        setOpts((o) => ({ ...o, background: e.target.value }))
+                        setOpts((o) => ({ ...o, fit: e.target.value as FitMode }))
                       }
-                      className="h-8 w-10 cursor-pointer rounded border border-zinc-700 bg-transparent"
-                    />
-                  </div>
-                </Field>
+                      className="input"
+                    >
+                      <option value="contain">Contain (no crop)</option>
+                      <option value="cover">Cover (fill, crop)</option>
+                      <option value="stretch">Stretch</option>
+                    </select>
+                  </Field>
 
-                <Field label={`Sticker outline: ${Math.round(opts.outline * 100)}%`}>
-                  <div className="flex items-center gap-2">
+                  <Field label={`Padding: ${Math.round(opts.padding * 100)}%`}>
                     <input
                       type="range"
                       min={0}
-                      max={0.12}
+                      max={0.4}
                       step={0.01}
-                      value={opts.outline}
+                      value={opts.padding}
                       onChange={(e) =>
-                        setOpts((o) => ({ ...o, outline: Number(e.target.value) }))
+                        setOpts((o) => ({ ...o, padding: Number(e.target.value) }))
                       }
-                      className="w-full"
+                      className="w-full cursor-pointer accent-violet-500"
                     />
-                    <input
-                      type="color"
-                      value={opts.outlineColor}
-                      onChange={(e) =>
-                        setOpts((o) => ({ ...o, outlineColor: e.target.value }))
-                      }
-                      className="h-8 w-10 cursor-pointer rounded border border-zinc-700 bg-transparent"
-                    />
-                  </div>
-                </Field>
+                  </Field>
 
-                <label className="flex items-center gap-2 text-sm text-zinc-300">
-                  <input
-                    type="checkbox"
-                    checked={opts.trim}
-                    onChange={(e) => setOpts((o) => ({ ...o, trim: e.target.checked }))}
-                  />
-                  Auto-trim transparent edges
-                </label>
-
-                <label className="flex items-center gap-2 text-sm text-zinc-300">
-                  <input
-                    type="checkbox"
-                    checked={opts.circle}
-                    onChange={(e) => setOpts((o) => ({ ...o, circle: e.target.checked }))}
-                  />
-                  Circle mask (round badge / avatar)
-                </label>
-
-                {/* Transform */}
-                <Field label="Transform">
-                  <div className="flex flex-wrap gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setOpts((o) => ({ ...o, rotate: (o.rotate - 90 + 360) % 360 }))}
-                      className="chip"
-                      title="Rotate left"
-                    >
-                      ↺ Left
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setOpts((o) => ({ ...o, rotate: (o.rotate + 90) % 360 }))}
-                      className="chip"
-                      title="Rotate right"
-                    >
-                      ↻ Right
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setOpts((o) => ({ ...o, flipH: !o.flipH }))}
-                      className={`chip ${opts.flipH ? "chip-on" : ""}`}
-                    >
-                      ⇋ Flip H
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setOpts((o) => ({ ...o, flipV: !o.flipV }))}
-                      className={`chip ${opts.flipV ? "chip-on" : ""}`}
-                    >
-                      ⇅ Flip V
-                    </button>
-                  </div>
-                </Field>
-
-                {/* Colour adjustments */}
-                <Field label={`Brightness: ${Math.round(opts.brightness * 100)}%`}>
-                  <input
-                    type="range"
-                    min={0.5}
-                    max={1.5}
-                    step={0.01}
-                    value={opts.brightness}
-                    onChange={(e) =>
-                      setOpts((o) => ({ ...o, brightness: Number(e.target.value) }))
-                    }
-                    className="w-full"
-                  />
-                </Field>
-                <Field label={`Contrast: ${Math.round(opts.contrast * 100)}%`}>
-                  <input
-                    type="range"
-                    min={0.5}
-                    max={1.5}
-                    step={0.01}
-                    value={opts.contrast}
-                    onChange={(e) =>
-                      setOpts((o) => ({ ...o, contrast: Number(e.target.value) }))
-                    }
-                    className="w-full"
-                  />
-                </Field>
-                <Field label={`Saturation: ${Math.round(opts.saturate * 100)}%`}>
-                  <input
-                    type="range"
-                    min={0}
-                    max={2}
-                    step={0.01}
-                    value={opts.saturate}
-                    onChange={(e) =>
-                      setOpts((o) => ({ ...o, saturate: Number(e.target.value) }))
-                    }
-                    className="w-full"
-                  />
-                </Field>
-
-                <button
-                  type="button"
-                  onClick={() => setOpts(DEFAULT_OPTIONS)}
-                  className="text-xs text-zinc-500 hover:text-zinc-300"
-                >
-                  Reset all adjustments
-                </button>
-
-                {/* Crop / Zoom */}
-                <Field label="Crop / Zoom">
-                  {!showCrop ? (
-                    <button type="button" onClick={() => { setCropDraft({ ...opts.crop }); setShowCrop(true); }} className="btn-secondary w-full text-xs">
-                      Open crop editor
-                    </button>
-                  ) : (
-                    <div className="space-y-2 rounded-lg border border-zinc-700 bg-zinc-900/60 p-3">
-                      <div className="grid grid-cols-2 gap-2 text-xs">
-                        <label>
-                          X: {Math.round(cropDraft.x * 100)}%
-                          <input type="range" min={0} max={0.9} step={0.01} value={cropDraft.x}
-                            onChange={(e) => setCropDraft((c) => ({ ...c, x: Number(e.target.value) }))} className="w-full" />
-                        </label>
-                        <label>
-                          Y: {Math.round(cropDraft.y * 100)}%
-                          <input type="range" min={0} max={0.9} step={0.01} value={cropDraft.y}
-                            onChange={(e) => setCropDraft((c) => ({ ...c, y: Number(e.target.value) }))} className="w-full" />
-                        </label>
-                        <label>
-                          Width: {Math.round(cropDraft.w * 100)}%
-                          <input type="range" min={0.1} max={1} step={0.01} value={cropDraft.w}
-                            onChange={(e) => setCropDraft((c) => ({ ...c, w: Number(e.target.value) }))} className="w-full" />
-                        </label>
-                        <label>
-                          Height: {Math.round(cropDraft.h * 100)}%
-                          <input type="range" min={0.1} max={1} step={0.01} value={cropDraft.h}
-                            onChange={(e) => setCropDraft((c) => ({ ...c, h: Number(e.target.value) }))} className="w-full" />
-                        </label>
-                      </div>
-                      <div className="flex gap-2">
-                        <button type="button" onClick={() => { setOpts((o) => ({ ...o, crop: cropDraft })); setShowCrop(false); }} className="btn-primary flex-1 text-xs">
-                          Apply crop
-                        </button>
-                        <button type="button" onClick={() => { setCropDraft({ ...FULL_CROP }); setOpts((o) => ({ ...o, crop: { ...FULL_CROP } })); setShowCrop(false); }} className="btn-secondary flex-1 text-xs">
-                          Reset
-                        </button>
-                      </div>
+                  <Field label="Background">
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setOpts((o) => ({ ...o, background: null }))}
+                        className={`chip cursor-pointer py-1.5 px-3 text-xs ${opts.background === null ? "chip-on" : ""}`}
+                      >
+                        Transparent
+                      </button>
+                      <input
+                        type="color"
+                        value={opts.background ?? "#ffffff"}
+                        onChange={(e) =>
+                          setOpts((o) => ({ ...o, background: e.target.value }))
+                        }
+                        className="h-8 w-10 cursor-pointer rounded border border-zinc-700 bg-transparent p-0"
+                      />
                     </div>
-                  )}
-                </Field>
+                  </Field>
 
-                {/* Text overlay */}
-                <Field label="Text overlay">
-                  <input
-                    type="text"
-                    placeholder="Your text here…"
-                    value={opts.textOverlay.text}
-                    onChange={(e) => setOpts((o) => ({ ...o, textOverlay: { ...o.textOverlay, text: e.target.value } }))}
-                    className="input"
-                    maxLength={30}
-                  />
-                  {opts.textOverlay.text && (
-                    <div className="mt-2 space-y-2">
-                      <div className="flex items-center gap-2">
-                        <label className="text-xs text-zinc-400">Size: {Math.round(opts.textOverlay.fontSize * 100)}%</label>
-                        <input type="range" min={0.08} max={0.4} step={0.01} value={opts.textOverlay.fontSize}
-                          onChange={(e) => setOpts((o) => ({ ...o, textOverlay: { ...o.textOverlay, fontSize: Number(e.target.value) } }))}
-                          className="flex-1" />
+                  <div className="space-y-2.5 pt-1.5 border-t border-zinc-800/40">
+                    <label className="flex items-center gap-2 text-xs text-zinc-300 cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={opts.trim}
+                        onChange={(e) => setOpts((o) => ({ ...o, trim: e.target.checked }))}
+                        className="rounded border-zinc-700 bg-zinc-950 text-violet-600 focus:ring-violet-500"
+                      />
+                      Auto-trim transparent edges
+                    </label>
+
+                    <label className="flex items-center gap-2 text-xs text-zinc-300 cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={opts.circle}
+                        onChange={(e) => setOpts((o) => ({ ...o, circle: e.target.checked }))}
+                        className="rounded border-zinc-700 bg-zinc-950 text-violet-600 focus:ring-violet-500"
+                      />
+                      Circle mask (round badge / avatar)
+                    </label>
+                  </div>
+                </CollapsibleSection>
+
+                <CollapsibleSection
+                  title="Transforms & Crop"
+                  isOpen={openSections.transform}
+                  onToggle={() => toggleSection("transform")}
+                >
+                  <Field label="Transform">
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setOpts((o) => ({ ...o, rotate: (o.rotate - 90 + 360) % 360 }))}
+                        className="chip cursor-pointer py-1.5 px-3 text-xs"
+                        title="Rotate left"
+                      >
+                        ↺ Left
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setOpts((o) => ({ ...o, rotate: (o.rotate + 90) % 360 }))}
+                        className="chip cursor-pointer py-1.5 px-3 text-xs"
+                        title="Rotate right"
+                      >
+                        ↻ Right
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setOpts((o) => ({ ...o, flipH: !o.flipH }))}
+                        className={`chip cursor-pointer py-1.5 px-3 text-xs ${opts.flipH ? "chip-on" : ""}`}
+                      >
+                        ⇋ Flip H
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setOpts((o) => ({ ...o, flipV: !o.flipV }))}
+                        className={`chip cursor-pointer py-1.5 px-3 text-xs ${opts.flipV ? "chip-on" : ""}`}
+                      >
+                        ⇅ Flip V
+                      </button>
+                    </div>
+                  </Field>
+
+                  <Field label="Crop / Zoom">
+                    {!showCrop ? (
+                      <button type="button" onClick={() => { setCropDraft({ ...opts.crop }); setShowCrop(true); }} className="btn-secondary cursor-pointer w-full py-1.5 text-xs">
+                        Open crop editor
+                      </button>
+                    ) : (
+                      <div className="space-y-3 rounded-lg border border-zinc-800 bg-zinc-900/60 p-3">
+                        <div className="grid grid-cols-2 gap-3 text-xs">
+                          <label className="block space-y-1">
+                            <span className="text-zinc-400">X: {Math.round(cropDraft.x * 100)}%</span>
+                            <input type="range" min={0} max={0.9} step={0.01} value={cropDraft.x}
+                              onChange={(e) => setCropDraft((c) => ({ ...c, x: Number(e.target.value) }))} className="w-full accent-violet-500" />
+                          </label>
+                          <label className="block space-y-1">
+                            <span className="text-zinc-400">Y: {Math.round(cropDraft.y * 100)}%</span>
+                            <input type="range" min={0} max={0.9} step={0.01} value={cropDraft.y}
+                              onChange={(e) => setCropDraft((c) => ({ ...c, y: Number(e.target.value) }))} className="w-full accent-violet-500" />
+                          </label>
+                          <label className="block space-y-1">
+                            <span className="text-zinc-400">Width: {Math.round(cropDraft.w * 100)}%</span>
+                            <input type="range" min={0.1} max={1} step={0.01} value={cropDraft.w}
+                              onChange={(e) => setCropDraft((c) => ({ ...c, w: Number(e.target.value) }))} className="w-full accent-violet-500" />
+                          </label>
+                          <label className="block space-y-1">
+                            <span className="text-zinc-400">Height: {Math.round(cropDraft.h * 100)}%</span>
+                            <input type="range" min={0.1} max={1} step={0.01} value={cropDraft.h}
+                              onChange={(e) => setCropDraft((c) => ({ ...c, h: Number(e.target.value) }))} className="w-full accent-violet-500" />
+                          </label>
+                        </div>
+                        <div className="flex gap-2">
+                          <button type="button" onClick={() => { setOpts((o) => ({ ...o, crop: cropDraft })); setShowCrop(false); }} className="btn-primary cursor-pointer flex-1 py-1.5 text-xs">
+                            Apply crop
+                          </button>
+                          <button type="button" onClick={() => { setCropDraft({ ...FULL_CROP }); setOpts((o) => ({ ...o, crop: { ...FULL_CROP } })); setShowCrop(false); }} className="btn-secondary cursor-pointer flex-1 py-1.5 text-xs">
+                            Reset
+                          </button>
+                        </div>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <label className="text-xs text-zinc-400">Color</label>
-                        <input type="color" value={opts.textOverlay.color}
-                          onChange={(e) => setOpts((o) => ({ ...o, textOverlay: { ...o.textOverlay, color: e.target.value } }))}
-                          className="h-7 w-8 cursor-pointer rounded border border-zinc-700 bg-transparent" />
-                        <label className="text-xs text-zinc-400">Stroke</label>
-                        <input type="color" value={opts.textOverlay.strokeColor}
-                          onChange={(e) => setOpts((o) => ({ ...o, textOverlay: { ...o.textOverlay, strokeColor: e.target.value } }))}
-                          className="h-7 w-8 cursor-pointer rounded border border-zinc-700 bg-transparent" />
+                    )}
+                  </Field>
+                </CollapsibleSection>
+
+                <CollapsibleSection
+                  title="Color Adjustments"
+                  isOpen={openSections.color}
+                  onToggle={() => toggleSection("color")}
+                >
+                  <Field label={`Brightness: ${Math.round(opts.brightness * 100)}%`}>
+                    <input
+                      type="range"
+                      min={0.5}
+                      max={1.5}
+                      step={0.01}
+                      value={opts.brightness}
+                      onChange={(e) =>
+                        setOpts((o) => ({ ...o, brightness: Number(e.target.value) }))
+                      }
+                      className="w-full cursor-pointer accent-violet-500"
+                    />
+                  </Field>
+                  <Field label={`Contrast: ${Math.round(opts.contrast * 100)}%`}>
+                    <input
+                      type="range"
+                      min={0.5}
+                      max={1.5}
+                      step={0.01}
+                      value={opts.contrast}
+                      onChange={(e) =>
+                        setOpts((o) => ({ ...o, contrast: Number(e.target.value) }))
+                      }
+                      className="w-full cursor-pointer accent-violet-500"
+                    />
+                  </Field>
+                  <Field label={`Saturation: ${Math.round(opts.saturate * 100)}%`}>
+                    <input
+                      type="range"
+                      min={0}
+                      max={2}
+                      step={0.01}
+                      value={opts.saturate}
+                      onChange={(e) =>
+                        setOpts((o) => ({ ...o, saturate: Number(e.target.value) }))
+                      }
+                      className="w-full cursor-pointer accent-violet-500"
+                    />
+                  </Field>
+
+                  <button
+                    type="button"
+                    onClick={() => setOpts(DEFAULT_OPTIONS)}
+                    className="text-xs text-zinc-500 hover:text-zinc-300 block pt-1 cursor-pointer"
+                  >
+                    Reset all adjustments
+                  </button>
+                </CollapsibleSection>
+
+                <CollapsibleSection
+                  title="Text & Effects"
+                  isOpen={openSections.effects}
+                  onToggle={() => toggleSection("effects")}
+                >
+                  <Field label={`Sticker outline: ${Math.round(opts.outline * 100)}%`}>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="range"
+                        min={0}
+                        max={0.12}
+                        step={0.01}
+                        value={opts.outline}
+                        onChange={(e) =>
+                          setOpts((o) => ({ ...o, outline: Number(e.target.value) }))
+                        }
+                        className="w-full cursor-pointer accent-violet-500"
+                      />
+                      <input
+                        type="color"
+                        value={opts.outlineColor}
+                        onChange={(e) =>
+                          setOpts((o) => ({ ...o, outlineColor: e.target.value }))
+                        }
+                        className="h-8 w-10 cursor-pointer rounded border border-zinc-700 bg-transparent p-0 shrink-0"
+                      />
+                    </div>
+                  </Field>
+
+                  <div className="border-t border-zinc-800/60 pt-3 mt-3">
+                    <label className="flex items-center gap-2 text-xs text-zinc-300 cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={opts.shadow.enabled}
+                        onChange={(e) => setOpts((o) => ({ ...o, shadow: { ...o.shadow, enabled: e.target.checked } }))}
+                        className="rounded border-zinc-700 bg-zinc-950 text-violet-600 focus:ring-violet-500"
+                      />
+                      Enable shadow / glow
+                    </label>
+                    {opts.shadow.enabled && (
+                      <div className="mt-2.5 space-y-2.5 rounded-lg border border-zinc-800 bg-zinc-950/40 p-2.5">
+                        <div className="flex items-center gap-2">
+                          <label className="text-xs text-zinc-400">Color</label>
+                          <input type="color" value={opts.shadow.color}
+                            onChange={(e) => setOpts((o) => ({ ...o, shadow: { ...o.shadow, color: e.target.value } }))}
+                            className="h-7 w-8 cursor-pointer rounded border border-zinc-700 bg-transparent p-0 shrink-0" />
+                          <button
+                            type="button"
+                            onClick={() => setOpts((o) => ({ ...o, shadow: { ...o.shadow, offsetX: 0, offsetY: 0, blur: 0.12 } }))}
+                            className="chip cursor-pointer py-1 px-2 text-[10px]"
+                            title="Center the shadow for an even glow"
+                          >
+                            Glow preset
+                          </button>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <label className="w-16 text-[10px] text-zinc-400 shrink-0">Blur {Math.round(opts.shadow.blur * 100)}%</label>
+                          <input type="range" min={0} max={0.25} step={0.01} value={opts.shadow.blur}
+                            onChange={(e) => setOpts((o) => ({ ...o, shadow: { ...o.shadow, blur: Number(e.target.value) } }))}
+                            className="flex-1 accent-violet-500" />
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <label className="w-16 text-[10px] text-zinc-400 shrink-0">X {Math.round(opts.shadow.offsetX * 100)}%</label>
+                          <input type="range" min={-0.15} max={0.15} step={0.01} value={opts.shadow.offsetX}
+                            onChange={(e) => setOpts((o) => ({ ...o, shadow: { ...o.shadow, offsetX: Number(e.target.value) } }))}
+                            className="flex-1 accent-violet-500" />
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <label className="w-16 text-[10px] text-zinc-400 shrink-0">Y {Math.round(opts.shadow.offsetY * 100)}%</label>
+                          <input type="range" min={-0.15} max={0.15} step={0.01} value={opts.shadow.offsetY}
+                            onChange={(e) => setOpts((o) => ({ ...o, shadow: { ...o.shadow, offsetY: Number(e.target.value) } }))}
+                            className="flex-1 accent-violet-500" />
+                        </div>
                       </div>
-                      <div className="flex gap-1">
-                        {(["top", "center", "bottom"] as const).map((pos) => (
-                          <button key={pos} type="button" onClick={() => setOpts((o) => ({ ...o, textOverlay: { ...o.textOverlay, position: pos } }))}
-                            className={`chip text-[10px] ${opts.textOverlay.position === pos ? "chip-on" : ""}`}>
-                            {pos}
+                    )}
+                  </div>
+
+                  <div className="border-t border-zinc-800/60 pt-3 mt-3">
+                    <Field label="Text overlay">
+                      <input
+                        type="text"
+                        placeholder="Your text here…"
+                        value={opts.textOverlay.text}
+                        onChange={(e) => setOpts((o) => ({ ...o, textOverlay: { ...o.textOverlay, text: e.target.value } }))}
+                        className="input"
+                        maxLength={30}
+                      />
+                      {opts.textOverlay.text && (
+                        <div className="mt-2.5 space-y-2.5 rounded-lg border border-zinc-800 bg-zinc-950/40 p-2.5">
+                          <div className="flex items-center gap-2">
+                            <label className="text-xs text-zinc-400">Size: {Math.round(opts.textOverlay.fontSize * 100)}%</label>
+                            <input type="range" min={0.08} max={0.4} step={0.01} value={opts.textOverlay.fontSize}
+                              onChange={(e) => setOpts((o) => ({ ...o, textOverlay: { ...o.textOverlay, fontSize: Number(e.target.value) } }))}
+                              className="flex-1 accent-violet-500" />
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <label className="text-xs text-zinc-400">Color</label>
+                            <input type="color" value={opts.textOverlay.color}
+                              onChange={(e) => setOpts((o) => ({ ...o, textOverlay: { ...o.textOverlay, color: e.target.value } }))}
+                              className="h-7 w-8 cursor-pointer rounded border border-zinc-700 bg-transparent p-0 shrink-0" />
+                            <label className="text-xs text-zinc-400">Stroke</label>
+                            <input type="color" value={opts.textOverlay.strokeColor}
+                              onChange={(e) => setOpts((o) => ({ ...o, textOverlay: { ...o.textOverlay, strokeColor: e.target.value } }))}
+                              className="h-7 w-8 cursor-pointer rounded border border-zinc-700 bg-transparent p-0 shrink-0" />
+                          </div>
+                          <div className="flex gap-1.5 flex-wrap">
+                            {(["top", "center", "bottom"] as const).map((pos) => (
+                              <button key={pos} type="button" onClick={() => setOpts((o) => ({ ...o, textOverlay: { ...o.textOverlay, position: pos } }))}
+                                className={`chip cursor-pointer py-1 px-2 text-[10px] ${opts.textOverlay.position === pos ? "chip-on" : ""}`}>
+                                {pos}
+                              </button>
+                            ))}
+                            <button type="button" onClick={() => setOpts((o) => ({ ...o, textOverlay: { ...o.textOverlay, bold: !o.textOverlay.bold } }))}
+                              className={`chip cursor-pointer py-1 px-2 text-[10px] ${opts.textOverlay.bold ? "chip-on" : ""}`}>
+                              Bold
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </Field>
+                  </div>
+                </CollapsibleSection>
+
+                {isBadgeSpec && (
+                  <CollapsibleSection
+                    title="Badge Tiers"
+                    isOpen={openSections.badge}
+                    onToggle={() => toggleSection("badge")}
+                  >
+                    <Field label="Badge tier color">
+                      <div className="flex flex-wrap gap-1.5">
+                        {BADGE_TIER_PRESETS.map((t) => (
+                          <button key={t.label} type="button" onClick={() => setOpts((o) => ({ ...o, hueRotate: t.hueRotate }))}
+                            className={`chip cursor-pointer py-1 px-2 text-[10px] ${opts.hueRotate === t.hueRotate ? "chip-on" : ""}`}>
+                            {t.label.split(" ")[0]}
                           </button>
                         ))}
-                        <button type="button" onClick={() => setOpts((o) => ({ ...o, textOverlay: { ...o.textOverlay, bold: !o.textOverlay.bold } }))}
-                          className={`chip text-[10px] ${opts.textOverlay.bold ? "chip-on" : ""}`}>
-                          Bold
-                        </button>
                       </div>
-                    </div>
-                  )}
-                </Field>
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          if (!working) return;
+                          setBusy(true);
+                          try {
+                            const tiers = await generateBadgeTiers(working, spec.sizes, opts, "png", spec.maxBytes);
+                            setTierResults(tiers);
+                          } finally { setBusy(false); }
+                        }}
+                        disabled={busy || !working}
+                        className="btn-secondary cursor-pointer mt-2.5 w-full py-1.5 text-xs font-semibold"
+                      >
+                        Generate all tier variants
+                      </button>
+                    </Field>
+                  </CollapsibleSection>
+                )}
 
-                {/* Drop shadow / glow */}
-                <Field label="Drop shadow / glow">
-                  <label className="flex items-center gap-2 text-sm text-zinc-300">
-                    <input
-                      type="checkbox"
-                      checked={opts.shadow.enabled}
-                      onChange={(e) => setOpts((o) => ({ ...o, shadow: { ...o.shadow, enabled: e.target.checked } }))}
-                    />
-                    Enable shadow / glow
-                  </label>
-                  {opts.shadow.enabled && (
-                    <div className="mt-2 space-y-2">
-                      <div className="flex items-center gap-2">
-                        <label className="text-xs text-zinc-400">Color</label>
-                        <input type="color" value={opts.shadow.color}
-                          onChange={(e) => setOpts((o) => ({ ...o, shadow: { ...o.shadow, color: e.target.value } }))}
-                          className="h-7 w-8 cursor-pointer rounded border border-zinc-700 bg-transparent" />
+                {spec.animatedSupported && (
+                  <CollapsibleSection
+                    title="✨ Make it Animated"
+                    isOpen={openSections.makeAnimated}
+                    onToggle={() => toggleSection("makeAnimated")}
+                  >
+                    <div className="flex flex-wrap gap-1.5">
+                      {(["bounce", "shake", "pulse", "rainbow", "spin"] as AnimationPreset[]).map((p) => (
                         <button
+                          key={p}
                           type="button"
-                          onClick={() => setOpts((o) => ({ ...o, shadow: { ...o.shadow, offsetX: 0, offsetY: 0, blur: 0.12 } }))}
-                          className="chip text-[10px]"
-                          title="Center the shadow for an even glow"
+                          disabled={busy}
+                          onClick={async () => {
+                            if (!working) return;
+                            setBusy(true);
+                            try {
+                              const res = await makeAnimated(working, spec.sizes, p, setProgress);
+                              setResult((prev) => {
+                                if (prev) revokeResult(prev);
+                                return res;
+                              });
+                              setAnimated(true);
+                              track("make_animated", { preset: p, spec: spec.id });
+                            } catch (e) {
+                              setError((e as Error).message || "Animation failed.");
+                            } finally {
+                              setBusy(false);
+                              setProgress("");
+                            }
+                          }}
+                          className="chip cursor-pointer py-1 px-2 text-[10px]"
                         >
-                          Glow preset
-                        </button>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <label className="w-16 text-xs text-zinc-400">Blur {Math.round(opts.shadow.blur * 100)}%</label>
-                        <input type="range" min={0} max={0.25} step={0.01} value={opts.shadow.blur}
-                          onChange={(e) => setOpts((o) => ({ ...o, shadow: { ...o.shadow, blur: Number(e.target.value) } }))}
-                          className="flex-1" />
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <label className="w-16 text-xs text-zinc-400">X {Math.round(opts.shadow.offsetX * 100)}%</label>
-                        <input type="range" min={-0.15} max={0.15} step={0.01} value={opts.shadow.offsetX}
-                          onChange={(e) => setOpts((o) => ({ ...o, shadow: { ...o.shadow, offsetX: Number(e.target.value) } }))}
-                          className="flex-1" />
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <label className="w-16 text-xs text-zinc-400">Y {Math.round(opts.shadow.offsetY * 100)}%</label>
-                        <input type="range" min={-0.15} max={0.15} step={0.01} value={opts.shadow.offsetY}
-                          onChange={(e) => setOpts((o) => ({ ...o, shadow: { ...o.shadow, offsetY: Number(e.target.value) } }))}
-                          className="flex-1" />
-                      </div>
-                    </div>
-                  )}
-                </Field>
-
-                {/* Badge tier color variants */}
-                {isBadgeSpec && (
-                  <Field label="Badge tier color">
-                    <div className="flex flex-wrap gap-1">
-                      {BADGE_TIER_PRESETS.map((t) => (
-                        <button key={t.label} type="button" onClick={() => setOpts((o) => ({ ...o, hueRotate: t.hueRotate }))}
-                          className={`chip text-[10px] ${opts.hueRotate === t.hueRotate ? "chip-on" : ""}`}>
-                          {t.label.split(" ")[0]}
+                          {p}
                         </button>
                       ))}
                     </div>
-                    <button
-                      type="button"
-                      onClick={async () => {
-                        if (!working) return;
-                        setBusy(true);
-                        try {
-                          const tiers = await generateBadgeTiers(working, spec.sizes, opts, "png", spec.maxBytes);
-                          setTierResults(tiers);
-                        } finally { setBusy(false); }
-                      }}
-                      disabled={busy || !working}
-                      className="btn-secondary mt-2 w-full text-xs"
-                    >
-                      Generate all tier variants
-                    </button>
-                  </Field>
+                  </CollapsibleSection>
                 )}
+              </>
+            )}
 
+            {animated && (
+              <>
+                <div className="rounded-lg bg-violet-500/10 px-3 py-2 text-xs font-semibold text-violet-300">
+                  Animated mode · powered by in-browser ffmpeg
+                </div>
+
+                <CollapsibleSection
+                  title="Animation Properties"
+                  isOpen={openSections.animation}
+                  onToggle={() => toggleSection("animation")}
+                >
+                  <Field label={`Frame rate: ${animOpts.fps} fps`}>
+                    <input
+                      type="range"
+                      min={10}
+                      max={50}
+                      step={1}
+                      value={animOpts.fps}
+                      onChange={(e) =>
+                        setAnimOpts((o) => ({ ...o, fps: Number(e.target.value) }))
+                      }
+                      className="w-full cursor-pointer accent-violet-500"
+                    />
+                  </Field>
+                  <Field label="Background">
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setAnimOpts((o) => ({ ...o, background: null }))}
+                        className={`chip cursor-pointer py-1.5 px-3 text-xs ${animOpts.background === null ? "chip-on" : ""}`}
+                      >
+                        Transparent
+                      </button>
+                      <input
+                        type="color"
+                        value={animOpts.background ?? "#ffffff"}
+                        onChange={(e) =>
+                          setAnimOpts((o) => ({ ...o, background: e.target.value }))
+                        }
+                        className="h-8 w-10 cursor-pointer rounded border border-zinc-700 bg-transparent p-0 shrink-0"
+                      />
+                    </div>
+                  </Field>
+                  <Field label={`Brightness: ${Math.round(animOpts.brightness * 100)}%`}>
+                    <input type="range" min={0.5} max={1.5} step={0.05} value={animOpts.brightness}
+                      onChange={(e) => setAnimOpts((o) => ({ ...o, brightness: Number(e.target.value) }))}
+                      className="w-full cursor-pointer accent-violet-500" />
+                  </Field>
+                  <Field label={`Contrast: ${Math.round(animOpts.contrast * 100)}%`}>
+                    <input type="range" min={0.5} max={2} step={0.05} value={animOpts.contrast}
+                      onChange={(e) => setAnimOpts((o) => ({ ...o, contrast: Number(e.target.value) }))}
+                      className="w-full cursor-pointer accent-violet-500" />
+                  </Field>
+                  <Field label={`Saturation: ${Math.round(animOpts.saturate * 100)}%`}>
+                    <input type="range" min={0} max={3} step={0.05} value={animOpts.saturate}
+                      onChange={(e) => setAnimOpts((o) => ({ ...o, saturate: Number(e.target.value) }))}
+                      className="w-full cursor-pointer accent-violet-500" />
+                  </Field>
+                  <Field label={`Hue shift: ${animOpts.hueRotate}°`}>
+                    <input type="range" min={0} max={360} step={5} value={animOpts.hueRotate}
+                      onChange={(e) => setAnimOpts((o) => ({ ...o, hueRotate: Number(e.target.value) }))}
+                      className="w-full cursor-pointer accent-violet-500" />
+                  </Field>
+
+                  {spec.animatedSupported && file && !isAnimatedFile(file) && (
+                    <div className="border-t border-zinc-800/60 pt-3 mt-3">
+                      <Field label="✨ Change animation style">
+                        <div className="flex flex-wrap gap-1.5">
+                          {(["bounce", "shake", "pulse", "rainbow", "spin"] as AnimationPreset[]).map((p) => (
+                            <button
+                              key={p}
+                              type="button"
+                              disabled={busy}
+                              onClick={async () => {
+                                if (!working) return;
+                                setBusy(true);
+                                try {
+                                  const res = await makeAnimated(working, spec.sizes, p, setProgress);
+                                  setResult((prev) => {
+                                    if (prev) revokeResult(prev);
+                                    return res;
+                                  });
+                                  setAnimated(true);
+                                  track("make_animated", { preset: p, spec: spec.id });
+                                } catch (e) {
+                                  setError((e as Error).message || "Animation failed.");
+                                } finally {
+                                  setBusy(false);
+                                  setProgress("");
+                                }
+                              }}
+                              className="chip cursor-pointer py-1 px-2 text-[10px]"
+                            >
+                              {p}
+                            </button>
+                          ))}
+                        </div>
+                      </Field>
+                    </div>
+                  )}
+                </CollapsibleSection>
+              </>
+            )}
+
+            {/* Base action buttons outside collapsible groups */}
+            <div className="space-y-2 pt-3 border-t border-zinc-800/50">
+              {!animated && (
                 <div className="flex gap-2">
-                  {!animated && !bgRemoved && (
-                    <button type="button" onClick={handleRemoveBg} disabled={busy} className="btn-secondary flex-1">
+                  {!bgRemoved && (
+                    <button type="button" onClick={handleRemoveBg} disabled={busy} className="btn-secondary cursor-pointer flex-1 py-2 text-xs font-semibold">
                       {busy && progress.toLowerCase().includes("background")
                         ? "Removing…"
                         : busy && progress.toLowerCase().includes("model")
@@ -856,162 +1051,32 @@ export default function EmoteStudio({ specId }: Props) {
                           : "Remove background"}
                     </button>
                   )}
-                  {(bgRemoved || (animated && file && !isAnimatedFile(file))) && (
-                    <button type="button" onClick={restoreOriginal} className="btn-secondary flex-1">
+                  {(bgRemoved || (file && !isAnimatedFile(file))) && (
+                    <button type="button" onClick={restoreOriginal} className="btn-secondary cursor-pointer flex-1 py-2 text-xs font-semibold">
                       Restore original
                     </button>
                   )}
                 </div>
+              )}
 
-                {/* Make it animated */}
-                {spec.animatedSupported && (
-                  <Field label="✨ Make it animated">
-                    <div className="flex flex-wrap gap-1">
-                      {(["bounce", "shake", "pulse", "rainbow", "spin"] as AnimationPreset[]).map((p) => (
-                        <button
-                          key={p}
-                          type="button"
-                          disabled={busy}
-                          onClick={async () => {
-                            if (!working) return;
-                            setBusy(true);
-                            try {
-                              const res = await makeAnimated(working, spec.sizes, p, setProgress);
-                              setResult((prev) => {
-                                if (prev) revokeResult(prev);
-                                return res;
-                              });
-                              setAnimated(true);
-                              track("make_animated", { preset: p, spec: spec.id });
-                            } catch (e) {
-                              setError((e as Error).message || "Animation failed.");
-                            } finally {
-                              setBusy(false);
-                              setProgress("");
-                            }
-                          }}
-                          className="chip text-[10px]"
-                        >
-                          {p}
-                        </button>
-                      ))}
-                    </div>
-                  </Field>
-                )}
-              </>
-            )}
-
-            {animated && (
-              <>
-                <div className="rounded-lg bg-violet-500/10 px-3 py-2 text-xs text-violet-300">
-                  Animated mode · powered by in-browser ffmpeg
-                </div>
-                <Field label={`Frame rate: ${animOpts.fps} fps`}>
-                  <input
-                    type="range"
-                    min={10}
-                    max={50}
-                    step={1}
-                    value={animOpts.fps}
-                    onChange={(e) =>
-                      setAnimOpts((o) => ({ ...o, fps: Number(e.target.value) }))
-                    }
-                    className="w-full"
-                  />
-                </Field>
-                <Field label="Background">
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setAnimOpts((o) => ({ ...o, background: null }))}
-                      className={`chip ${animOpts.background === null ? "chip-on" : ""}`}
-                    >
-                      Transparent
+              {animated && (
+                <>
+                  {file && !isAnimatedFile(file) && (
+                    <button type="button" onClick={restoreOriginal} className="btn-secondary cursor-pointer w-full py-2 text-xs font-semibold">
+                      ↩ Revert to static mode
                     </button>
-                    <input
-                      type="color"
-                      value={animOpts.background ?? "#ffffff"}
-                      onChange={(e) =>
-                        setAnimOpts((o) => ({ ...o, background: e.target.value }))
-                      }
-                      className="h-8 w-10 cursor-pointer rounded border border-zinc-700 bg-transparent"
-                    />
-                  </div>
-                </Field>
-                <Field label={`Brightness: ${Math.round(animOpts.brightness * 100)}%`}>
-                  <input type="range" min={0.5} max={1.5} step={0.05} value={animOpts.brightness}
-                    onChange={(e) => setAnimOpts((o) => ({ ...o, brightness: Number(e.target.value) }))}
-                    className="w-full" />
-                </Field>
-                <Field label={`Contrast: ${Math.round(animOpts.contrast * 100)}%`}>
-                  <input type="range" min={0.5} max={2} step={0.05} value={animOpts.contrast}
-                    onChange={(e) => setAnimOpts((o) => ({ ...o, contrast: Number(e.target.value) }))}
-                    className="w-full" />
-                </Field>
-                <Field label={`Saturation: ${Math.round(animOpts.saturate * 100)}%`}>
-                  <input type="range" min={0} max={3} step={0.05} value={animOpts.saturate}
-                    onChange={(e) => setAnimOpts((o) => ({ ...o, saturate: Number(e.target.value) }))}
-                    className="w-full" />
-                </Field>
-                <Field label={`Hue shift: ${animOpts.hueRotate}°`}>
-                  <input type="range" min={0} max={360} step={5} value={animOpts.hueRotate}
-                    onChange={(e) => setAnimOpts((o) => ({ ...o, hueRotate: Number(e.target.value) }))}
-                    className="w-full" />
-                </Field>
-
-                {/* Render the presets inside animated mode ONLY if the uploaded file is static (so they can switch styles!) */}
-                {spec.animatedSupported && file && !isAnimatedFile(file) && (
-                  <Field label="✨ Change animation style">
-                    <div className="flex flex-wrap gap-1">
-                      {(["bounce", "shake", "pulse", "rainbow", "spin"] as AnimationPreset[]).map((p) => (
-                        <button
-                          key={p}
-                          type="button"
-                          disabled={busy}
-                          onClick={async () => {
-                            if (!working) return;
-                            setBusy(true);
-                            try {
-                              const res = await makeAnimated(working, spec.sizes, p, setProgress);
-                              setResult((prev) => {
-                                if (prev) revokeResult(prev);
-                                return res;
-                              });
-                              setAnimated(true);
-                              track("make_animated", { preset: p, spec: spec.id });
-                            } catch (e) {
-                              setError((e as Error).message || "Animation failed.");
-                            } finally {
-                              setBusy(false);
-                              setProgress("");
-                            }
-                          }}
-                          className="chip text-[10px]"
-                        >
-                          {p}
-                        </button>
-                      ))}
-                    </div>
-                  </Field>
-                )}
-
-                {/* Revert to static option if the original file is static */}
-                {file && !isAnimatedFile(file) && (
-                  <button type="button" onClick={restoreOriginal} className="btn-secondary w-full text-xs">
-                    ↩ Revert to static mode
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => runProcess()}
+                    disabled={busy}
+                    className="btn-primary cursor-pointer w-full py-2 text-xs font-semibold"
+                  >
+                    {busy ? "Processing…" : "Generate animated emote"}
                   </button>
-                )}
-
-                <button
-                  type="button"
-                  onClick={() => runProcess()}
-                  disabled={busy}
-                  className="btn-primary w-full"
-                >
-                  {busy ? "Processing…" : "Generate animated emote"}
-                </button>
-              </>
-            )}
+                </>
+              )}
+            </div>
           </div>
         )}
 
@@ -1072,6 +1137,47 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
     </div>
   );
 }
+
+function CollapsibleSection({
+  title,
+  isOpen,
+  onToggle,
+  children,
+}: {
+  title: string;
+  isOpen: boolean;
+  onToggle: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="border border-zinc-800 rounded-lg overflow-hidden bg-zinc-900/30">
+      <button
+        type="button"
+        onClick={onToggle}
+        className="w-full flex items-center justify-between px-3 py-2 text-xs font-semibold text-zinc-300 hover:text-white hover:bg-zinc-800/40 transition-colors cursor-pointer"
+      >
+        <span>{title}</span>
+        <svg
+          className={`h-4 w-4 text-zinc-500 transition-transform duration-200 ${isOpen ? "rotate-180" : ""}`}
+          viewBox="0 0 20 20"
+          fill="currentColor"
+        >
+          <path
+            fillRule="evenodd"
+            d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"
+            clipRule="evenodd"
+          />
+        </svg>
+      </button>
+      {isOpen && (
+        <div className="p-3 border-t border-zinc-800/60 space-y-3 bg-zinc-950/20">
+          {children}
+        </div>
+      )}
+    </div>
+  );
+}
+
 
 function ChatMockup({
   url,
